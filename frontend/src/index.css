@@ -1,0 +1,64 @@
+@import url("https://db.onlinewebfonts.com/c/440b53b1a1c65037f944ff19259d8014?family=Nokia+Cellphone+FC+Small");
+@config "../tailwind.config.js";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  :root {
+    --font-instrument: "Instrument Serif", serif;
+    --font-serif: "Instrument Serif", serif;
+    --font-sans: "Inter", sans-serif;
+    --font-nokia: "Nokia Cellphone FC Small", monospace;
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  html,
+  body {
+    width: 100%;
+    overflow-x: hidden;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    color: #111827;
+    background-color: #f3f4f6;
+    margin: 0;
+    padding: 0;
+  }
+}
+
+@utility font-instrument {
+  font-family: "Instrument Serif", serif;
+}
+
+/* ── Light canvas (used on marketing pages) ── */
+.canvas-dot-grid {
+  background-color: #0f0f13;
+  background-image: radial-gradient(circle, rgba(255,255,255,0.06) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+/* ── Scrollbar styling for the AI panel ── */
+::-webkit-scrollbar {
+  width: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.22);
+}
