@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "motion/react";
-import { boardsApi, type Board } from "../services/api";
+import { supabase } from "../services/supabase";
 
 function timeAgo(dateStr?: string) {
   if (!dateStr) return "recently";
@@ -18,38 +18,111 @@ function timeAgo(dateStr?: string) {
   return `${days}d ago`;
 }
 
+type Board = {
+  id: string;
+  name: string;
+  created_at: string;
+};
+
 export default function DashboardPage() {
   const navigate = useNavigate();
+  const [session, setSession] = useState<any>(null);
+  const [loadingAuth, setLoadingAuth] = useState(true);
+  
+  // Auth state
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [isSignUp, setIsSignUp] = useState(false);
+  const [authError, setAuthError] = useState("");
+  const [authLoading, setAuthLoading] = useState(false);
+
+  // Board state
   const [boards, setBoards] = useState<Board[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loadingBoards, setLoadingBoards] = useState(true);
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
   const [showCreate, setShowCreate] = useState(false);
   const [error, setError] = useState("");
 
-  const fetchBoards = useCallback(() => {
-    setLoading(true);
-    boardsApi
-      .list()
-      .then(setBoards)
-      .catch(() => setError("Could not load boards. Is the backend running?"))
-      .finally(() => setLoading(false));
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setLoadingAuth(false);
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
+  const fetchBoards = useCallback(async () => {
+    if (!session?.user) return;
+    setLoadingBoards(true);
+    const { data, error } = await supabase
+      .from("boards")
+      .select("id, name, created_at")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error(error);
+      setError("Could not load boards.");
+    } else {
+      setBoards(data || []);
+    }
+    setLoadingBoards(false);
+  }, [session]);
+
   useEffect(() => {
-    fetchBoards();
-  }, [fetchBoards]);
+    if (session) {
+      fetchBoards();
+    }
+  }, [session, fetchBoards]);
+
+  const handleAuth = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthLoading(true);
+    setAuthError("");
+    try {
+      if (isSignUp) {
+        const { error } = await supabase.auth.signUp({ email, password });
+        if (error) throw error;
+        alert("Check your email for the login link or just try logging in if auto-confirm is enabled!");
+        setIsSignUp(false);
+      } else {
+        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) throw error;
+      }
+    } catch (err: any) {
+      setAuthError(err.message || "Authentication failed");
+    } finally {
+      setAuthLoading(false);
+    }
+  };
 
   const handleCreate = async () => {
+    if (!session?.user) return;
     const name = newName.trim() || "Untitled Board";
     setCreating(true);
     try {
-      const board = await boardsApi.create(name);
-      setBoards((prev) => [board, ...prev]);
-      setShowCreate(false);
-      setNewName("");
-      navigate(`/board/${board.id}`);
-    } catch {
+      const { data, error } = await supabase
+        .from("boards")
+        .insert([{ name, created_by: session.user.id }])
+        .select()
+        .single();
+      
+      if (error) throw error;
+      if (data) {
+        setBoards((prev) => [data, ...prev]);
+        setShowCreate(false);
+        setNewName("");
+        navigate(`/board/${data.id}`);
+      }
+    } catch (err) {
+      console.error(err);
       setError("Failed to create board.");
     } finally {
       setCreating(false);
@@ -60,12 +133,127 @@ export default function DashboardPage() {
     e.stopPropagation();
     if (!window.confirm("Delete this board?")) return;
     try {
-      await boardsApi.delete(id);
+      const { error } = await supabase.from("boards").delete().eq("id", id);
+      if (error) throw error;
       setBoards((prev) => prev.filter((b) => b.id !== id));
     } catch {
       setError("Failed to delete board.");
     }
   };
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+  };
+
+  if (loadingAuth) {
+    return <div style={{ minHeight: "100dvh", background: "#F3F4ED", display: "flex", alignItems: "center", justifyContent: "center" }}>Loading...</div>;
+  }
+
+  if (!session) {
+    return (
+      <div style={{
+        minHeight: "100dvh",
+        background: "#F3F4ED",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        fontFamily: "var(--font-sans)",
+      }}>
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          style={{
+            background: "#fff",
+            padding: "40px",
+            borderRadius: "20px",
+            boxShadow: "0 10px 40px rgba(0,0,0,0.05)",
+            width: "100%",
+            maxWidth: "400px",
+          }}
+        >
+          <div style={{ textAlign: "center", marginBottom: "32px" }}>
+            <h1 style={{ fontFamily: "var(--font-instrument)", fontSize: "32px", margin: "0 0 8px 0", color: "#1a1a1a" }}>smartarch</h1>
+            <p style={{ margin: 0, color: "rgba(26,26,26,0.6)", fontSize: "14px" }}>
+              {isSignUp ? "Create your account" : "Welcome back to your boards"}
+            </p>
+          </div>
+
+          <form onSubmit={handleAuth} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+            <input
+              type="email"
+              placeholder="Email address"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              style={{
+                width: "100%",
+                padding: "12px 16px",
+                borderRadius: "10px",
+                border: "1px solid rgba(26,26,26,0.1)",
+                outline: "none",
+                fontSize: "14px",
+                background: "#F8F9F5",
+              }}
+            />
+            <input
+              type="password"
+              placeholder="Password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              minLength={6}
+              style={{
+                width: "100%",
+                padding: "12px 16px",
+                borderRadius: "10px",
+                border: "1px solid rgba(26,26,26,0.1)",
+                outline: "none",
+                fontSize: "14px",
+                background: "#F8F9F5",
+              }}
+            />
+            {authError && <p style={{ color: "#ef4444", fontSize: "13px", margin: 0 }}>{authError}</p>}
+            
+            <button
+              type="submit"
+              disabled={authLoading}
+              style={{
+                background: "#00BD7D",
+                color: "#fff",
+                border: "none",
+                padding: "14px",
+                borderRadius: "10px",
+                fontSize: "15px",
+                fontWeight: 600,
+                cursor: authLoading ? "not-allowed" : "pointer",
+                marginTop: "8px",
+                opacity: authLoading ? 0.7 : 1,
+              }}
+            >
+              {authLoading ? "Please wait..." : (isSignUp ? "Sign Up" : "Log In")}
+            </button>
+          </form>
+
+          <p style={{ textAlign: "center", marginTop: "24px", fontSize: "14px", color: "rgba(26,26,26,0.6)" }}>
+            {isSignUp ? "Already have an account? " : "Don't have an account? "}
+            <button
+              onClick={() => setIsSignUp(!isSignUp)}
+              style={{
+                background: "none",
+                border: "none",
+                color: "#00BD7D",
+                fontWeight: 600,
+                cursor: "pointer",
+                padding: 0,
+              }}
+            >
+              {isSignUp ? "Log In" : "Sign Up"}
+            </button>
+          </p>
+        </motion.div>
+      </div>
+    );
+  }
 
   return (
     <div style={{
@@ -98,289 +286,216 @@ export default function DashboardPage() {
               Your Boards
             </h1>
             <p style={{ color: "rgba(26,26,26,0.6)", fontSize: "14px", margin: "8px 0 0" }}>
-              {boards.length} board{boards.length !== 1 ? "s" : ""}
+              {session.user.email} &bull; <button onClick={handleLogout} style={{ background: "none", border: "none", color: "#ef4444", cursor: "pointer", padding: 0 }}>Log out</button>
             </p>
           </div>
 
-          <button
-            onClick={() => setShowCreate(true)}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-              padding: "10px 20px",
-              borderRadius: "10px",
-              border: "none",
-              background: "linear-gradient(135deg, #0871E7 0%, #0B5FCC 100%)",
-              color: "#fff",
-              fontFamily: "var(--font-sans)",
-              fontSize: "14px",
-              fontWeight: 600,
-              cursor: "pointer",
-              boxShadow: "0 4px 20px rgba(8,113,231,0.35)",
-              transition: "opacity 0.2s",
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.88")}
-            onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
-          >
-            <PlusIcon /> New Board
-          </button>
+          {!showCreate ? (
+            <button
+              onClick={() => setShowCreate(true)}
+              style={{
+                background: "#00BD7D",
+                color: "#fff",
+                border: "none",
+                padding: "12px 24px",
+                borderRadius: "12px",
+                fontSize: "15px",
+                fontWeight: 600,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                boxShadow: "0 4px 12px rgba(0, 189, 125, 0.25)",
+                transition: "all 0.2s",
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.transform = "translateY(-2px)")}
+              onMouseLeave={(e) => (e.currentTarget.style.transform = "none")}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+              New Board
+            </button>
+          ) : (
+            <div style={{ display: "flex", gap: "8px" }}>
+              <input
+                autoFocus
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleCreate();
+                  if (e.key === "Escape") setShowCreate(false);
+                }}
+                placeholder="Board name..."
+                style={{
+                  padding: "10px 16px",
+                  borderRadius: "10px",
+                  border: "1px solid rgba(26,26,26,0.15)",
+                  background: "#fff",
+                  outline: "none",
+                  fontSize: "15px",
+                  fontFamily: "var(--font-sans)",
+                }}
+              />
+              <button
+                onClick={handleCreate}
+                disabled={creating}
+                style={{
+                  background: "#1a1a1a",
+                  color: "#fff",
+                  border: "none",
+                  padding: "0 20px",
+                  borderRadius: "10px",
+                  fontWeight: 600,
+                  cursor: creating ? "default" : "pointer",
+                  opacity: creating ? 0.7 : 1,
+                }}
+              >
+                {creating ? "..." : "Create"}
+              </button>
+              <button
+                onClick={() => setShowCreate(false)}
+                style={{
+                  background: "transparent",
+                  color: "rgba(26,26,26,0.6)",
+                  border: "none",
+                  padding: "0 12px",
+                  cursor: "pointer",
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          )}
         </motion.div>
 
-        {/* Error */}
         {error && (
-          <div style={{
-            background: "rgba(239,68,68,0.1)",
-            border: "1px solid rgba(239,68,68,0.25)",
-            borderRadius: "10px",
-            padding: "12px 16px",
-            color: "#f87171",
-            fontSize: "14px",
-            marginBottom: "24px",
-          }}>
+          <div style={{ padding: "12px", background: "#fee2e2", color: "#b91c1c", borderRadius: "8px", marginBottom: "24px", fontSize: "14px" }}>
             {error}
           </div>
         )}
 
-        {/* Create modal overlay */}
-        {showCreate && (
-          <div style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.6)",
-            backdropFilter: "blur(4px)",
-            zIndex: 100,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-            onClick={() => setShowCreate(false)}
-          >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.92 }}
-              animate={{ opacity: 1, scale: 1 }}
-              style={{
-                background: "rgba(255,255,255,0.85)",
-                border: "1px solid rgba(26,26,26,0.1)",
-                borderRadius: "20px",
-                padding: "32px",
-                width: "min(90%, 440px)",
-                boxShadow: "0 24px 80px rgba(16,35,58,0.2)",
-                backdropFilter: "blur(12px)",
-              }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <h2 style={{ fontFamily: "var(--font-instrument)", fontSize: "28px", color: "#1a1a1a", margin: "0 0 8px", letterSpacing: "-0.02em" }}>
-                New Board
-              </h2>
-              <p style={{ color: "rgba(26,26,26,0.6)", fontSize: "14px", margin: "0 0 24px" }}>
-                Give your board a name to get started.
-              </p>
-              <input
-                autoFocus
-                type="text"
-                placeholder="e.g. Microservices Architecture"
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleCreate()}
-                style={{
-                  width: "100%",
-                  boxSizing: "border-box",
-                  background: "rgba(255,255,255,0.72)",
-                  border: "1px solid rgba(26,26,26,0.12)",
-                  borderRadius: "10px",
-                  padding: "12px 16px",
-                  color: "#1a1a1a",
-                  fontFamily: "var(--font-sans)",
-                  fontSize: "15px",
-                  outline: "none",
-                  marginBottom: "20px",
-                }}
-              />
-              <div style={{ display: "flex", gap: "10px" }}>
-                <button
-                  onClick={handleCreate}
-                  disabled={creating}
-                  style={{
-                    flex: 1,
-                    padding: "12px",
-                    borderRadius: "10px",
-                    border: "none",
-                    background: "linear-gradient(135deg, #0871E7 0%, #0B5FCC 100%)",
-                    color: "#fff",
-                    fontFamily: "var(--font-sans)",
-                    fontSize: "14px",
-                    fontWeight: 600,
-                    cursor: creating ? "not-allowed" : "pointer",
-                    opacity: creating ? 0.6 : 1,
-                  }}
-                >
-                  {creating ? "Creating…" : "Create Board →"}
-                </button>
-                <button
-                  onClick={() => setShowCreate(false)}
-                  style={{
-                    padding: "12px 20px",
-                    borderRadius: "10px",
-                    border: "1px solid rgba(26,26,26,0.12)",
-                    background: "rgba(255,255,255,0.5)",
-                    color: "rgba(26,26,26,0.6)",
-                    fontFamily: "var(--font-sans)",
-                    fontSize: "14px",
-                    cursor: "pointer",
-                  }}
-                >
-                  Cancel
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-
-        {/* Board grid */}
-        {loading ? (
-          <div style={{ textAlign: "center", padding: "80px 0", color: "rgba(26,26,26,0.4)", fontSize: "14px" }}>
-            Loading boards…
+        {/* Board Grid */}
+        {loadingBoards ? (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "24px" }}>
+            {[1, 2, 3].map((i) => (
+              <div key={i} style={{ height: "200px", background: "rgba(26,26,26,0.03)", borderRadius: "16px", animation: "pulse 2s infinite" }} />
+            ))}
           </div>
         ) : boards.length === 0 ? (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            style={{
-              textAlign: "center",
-              padding: "80px 0",
-              border: "1px dashed rgba(26,26,26,0.15)",
-              borderRadius: "20px",
-            }}
-          >
-            <div style={{ fontSize: "48px", marginBottom: "16px" }}>🖊️</div>
-            <p style={{ color: "rgba(26,26,26,0.5)", fontSize: "15px", margin: 0 }}>
-              No boards yet. Create your first one!
-            </p>
-          </motion.div>
-        ) : (
           <div style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
-            gap: "20px",
-            paddingBottom: "60px",
+            textAlign: "center",
+            padding: "80px 20px",
+            background: "rgba(26,26,26,0.02)",
+            borderRadius: "24px",
+            border: "1px dashed rgba(26,26,26,0.1)",
           }}>
-            {boards.map((board, i) => (
+            <div style={{
+              width: "64px", height: "64px", background: "rgba(0,189,125,0.1)", color: "#00BD7D", borderRadius: "20px",
+              display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 20px"
+            }}>
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                <polyline points="21 15 16 10 5 21"></polyline>
+              </svg>
+            </div>
+            <h3 style={{ fontSize: "18px", margin: "0 0 8px 0", color: "#1a1a1a" }}>No boards yet</h3>
+            <p style={{ margin: 0, color: "rgba(26,26,26,0.5)", fontSize: "15px" }}>Create your first board to start collaborating.</p>
+          </div>
+        ) : (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "24px" }}>
+            {boards.map((board, index) => (
               <motion.div
-                key={board.id}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.06 }}
+                transition={{ duration: 0.5, delay: index * 0.05 }}
+                key={board.id}
                 onClick={() => navigate(`/board/${board.id}`)}
                 style={{
-                  background: "rgba(255,255,255,0.55)",
-                  border: "1px solid rgba(255,255,255,0.62)",
+                  background: "#fff",
                   borderRadius: "16px",
                   padding: "24px",
                   cursor: "pointer",
-                  transition: "all 0.2s",
+                  display: "flex",
+                  flexDirection: "column",
+                  justifyContent: "space-between",
+                  height: "200px",
+                  boxShadow: "0 2px 10px rgba(0,0,0,0.02)",
+                  border: "1px solid rgba(26,26,26,0.04)",
                   position: "relative",
-                  backdropFilter: "blur(8px)",
+                  transition: "all 0.3s cubic-bezier(0.16, 1, 0.3, 1)",
                 }}
-                whileHover={{
-                  y: -4,
-                  boxShadow: "0 12px 40px rgba(16,35,58,0.12)",
-                  borderColor: "rgba(8,113,231,0.4)",
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = "translateY(-4px)";
+                  e.currentTarget.style.boxShadow = "0 12px 24px rgba(0,0,0,0.06)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = "none";
+                  e.currentTarget.style.boxShadow = "0 2px 10px rgba(0,0,0,0.02)";
                 }}
               >
-                {/* Preview area */}
-                <div style={{
-                  background: "linear-gradient(135deg, rgba(236,245,251,0.94) 0%, rgba(220,236,246,0.92) 100%)",
-                  borderRadius: "10px",
-                  height: "120px",
-                  marginBottom: "16px",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  backgroundImage: "radial-gradient(circle, rgba(26,26,26,0.06) 1px, transparent 1px)",
-                  backgroundSize: "16px 16px",
-                  position: "relative",
-                  overflow: "hidden",
-                }}>
-                  <span style={{ fontSize: "32px", opacity: 0.6 }}>🖊️</span>
-                </div>
-
-                <h3 style={{
-                  fontFamily: "var(--font-sans)",
-                  fontSize: "15px",
-                  fontWeight: 600,
-                  color: "#1a1a1a",
-                  margin: "0 0 6px",
-                }}>
-                  {board.name}
-                </h3>
-                <p style={{
-                  fontFamily: "var(--font-sans)",
-                  fontSize: "12px",
-                  color: "rgba(26,26,26,0.5)",
-                  margin: "0 0 16px",
-                }}>
-                  Created {timeAgo(board.created_at)}
-                </p>
-
-                <div style={{ display: "flex", gap: "8px" }}>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); navigate(`/board/${board.id}`); }}
-                    style={{
-                      flex: 1,
-                      padding: "8px",
-                      borderRadius: "8px",
-                      border: "1px solid rgba(8,113,231,0.3)",
-                      background: "rgba(8,113,231,0.12)",
-                      color: "#0871E7",
+                <div>
+                  <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
+                    <h3 style={{
+                      margin: 0,
+                      fontSize: "18px",
+                      fontWeight: 600,
+                      color: "#1a1a1a",
                       fontFamily: "var(--font-sans)",
-                      fontSize: "13px",
-                      fontWeight: 500,
-                      cursor: "pointer",
-                    }}
-                  >
-                    Open
-                  </button>
-                  <button
-                    onClick={(e) => handleDelete(board.id, e)}
-                    title="Delete board"
-                    style={{
-                      padding: "8px 10px",
-                      borderRadius: "8px",
-                      border: "1px solid rgba(239,68,68,0.2)",
-                      background: "rgba(239,68,68,0.07)",
-                      color: "rgba(239,68,68,0.6)",
-                      cursor: "pointer",
-                    }}
-                  >
-                    <TrashIcon />
-                  </button>
+                    }}>
+                      {board.name}
+                    </h3>
+                    <button
+                      onClick={(e) => handleDelete(board.id, e)}
+                      style={{
+                        background: "rgba(239, 68, 68, 0.1)",
+                        color: "#ef4444",
+                        border: "none",
+                        width: "28px",
+                        height: "28px",
+                        borderRadius: "8px",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        cursor: "pointer",
+                        opacity: 0,
+                        transition: "opacity 0.2s",
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(239, 68, 68, 0.2)")}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = "rgba(239, 68, 68, 0.1)")}
+                      className="delete-btn"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M3 6h18"></path>
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                      </svg>
+                    </button>
+                  </div>
                 </div>
+
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderTop: "1px solid rgba(26,26,26,0.06)", paddingTop: "16px", marginTop: "auto" }}>
+                  <span style={{ fontSize: "13px", color: "rgba(26,26,26,0.5)", display: "flex", alignItems: "center", gap: "6px" }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="10"></circle>
+                      <polyline points="12 6 12 12 16 14"></polyline>
+                    </svg>
+                    {timeAgo(board.created_at)}
+                  </span>
+                </div>
+                
+                {/* Global style to show delete button on hover */}
+                <style>{`
+                  div:hover > div > div > .delete-btn {
+                    opacity: 1 !important;
+                  }
+                `}</style>
               </motion.div>
             ))}
           </div>
         )}
       </div>
     </div>
-  );
-}
-
-function PlusIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-      <line x1="12" y1="5" x2="12" y2="19" />
-      <line x1="5" y1="12" x2="19" y2="12" />
-    </svg>
-  );
-}
-
-function TrashIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="3 6 5 6 21 6" />
-      <path d="M19 6l-1 14H6L5 6" />
-      <path d="M10 11v6M14 11v6" />
-      <path d="M9 6V4h6v2" />
-    </svg>
   );
 }

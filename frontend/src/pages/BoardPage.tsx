@@ -7,7 +7,8 @@ import { RoomPanel } from "../components/ui/RoomPanel";
 import { JoinRoomModal } from "../components/ui/JoinRoomModal";
 import { useRoomStore } from "../stores/roomStore";
 import { useCanvasStore } from "../stores/canvasStore";
-import { boardsApi, type Board, type CanvasElement } from "../services/api";
+import { supabase } from "../services/supabase";
+import type { CanvasElement } from "../services/api";
 
 export default function BoardPage() {
   const { roomId: pathRoomId } = useParams<{ roomId: string }>();
@@ -22,7 +23,7 @@ export default function BoardPage() {
   const canvasJSON = useCanvasStore((state) => state.canvasJSON);
   const isDarkMode = useCanvasStore((state) => state.isDarkMode);
 
-  const [board, setBoard] = useState<Board | null>(null);
+  const [board, setBoard] = useState<any>(null);
   const [aiOpen, setAiOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [editingName, setEditingName] = useState(false);
@@ -45,13 +46,19 @@ export default function BoardPage() {
   // Fetch board info once joined
   useEffect(() => {
     if (!hasJoined || !storeRoomId) return;
-    boardsApi
-      .get(storeRoomId)
-      .then((b) => {
-        setBoard(b);
-        setBoardName(b.name);
-      })
-      .catch(console.error);
+    supabase
+      .from("boards")
+      .select("*")
+      .eq("id", storeRoomId)
+      .single()
+      .then(({ data, error }) => {
+        if (data && !error) {
+          setBoard(data);
+          setBoardName(data.name);
+        } else {
+          console.error("Could not fetch board", error);
+        }
+      });
   }, [hasJoined, storeRoomId]);
 
   // Auto-save board every 30s (owner only)
@@ -61,8 +68,13 @@ export default function BoardPage() {
     const interval = setInterval(() => {
       const currentJson = useCanvasStore.getState().canvasJSON;
       if (currentJson && currentJson !== "{}") {
-        boardsApi.update(storeRoomId, { canvas_json: currentJson, name: boardName })
-          .catch(console.error);
+        supabase
+          .from("boards")
+          .update({ canvas_json: JSON.parse(currentJson), name: boardName })
+          .eq("id", storeRoomId)
+          .then(({ error }) => {
+            if (error) console.error("Auto-save failed", error);
+          });
       }
     }, 30000);
 
@@ -84,7 +96,16 @@ export default function BoardPage() {
   const handleSaveName = useCallback(() => {
     if (!storeRoomId || !boardName.trim() || myRole !== "owner") return;
     setEditingName(false);
-    boardsApi.update(storeRoomId, { name: boardName }).then(setBoard).catch(console.error);
+    supabase
+      .from("boards")
+      .update({ name: boardName })
+      .eq("id", storeRoomId)
+      .select()
+      .single()
+      .then(({ data, error }) => {
+        if (data && !error) setBoard(data);
+        else console.error("Failed to save name", error);
+      });
   }, [storeRoomId, boardName, myRole]);
 
   if (!hasJoined) {
