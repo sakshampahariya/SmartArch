@@ -1,9 +1,0 @@
-fastapi
-uvicorn[standard]
-python-socketio
-supabase
-redis
-groq
-python-dotenv
-pydantic
-nanoid

@@ -70,7 +70,7 @@ export default function DashboardPage() {
   return (
     <div style={{
       minHeight: "100dvh",
-      background: "#0a0a10",
+      background: "#F3F4ED",
       fontFamily: "var(--font-sans)",
       paddingTop: "80px",
     }}>
@@ -90,14 +90,14 @@ export default function DashboardPage() {
             <h1 style={{
               fontFamily: "var(--font-instrument)",
               fontSize: "clamp(28px, 4vw, 42px)",
-              color: "#f1f5f9",
+              color: "#1a1a1a",
               letterSpacing: "-0.02em",
               margin: 0,
               lineHeight: 1.1,
             }}>
               Your Boards
             </h1>
-            <p style={{ color: "rgba(241,245,249,0.4)", fontSize: "14px", margin: "8px 0 0" }}>
+            <p style={{ color: "rgba(26,26,26,0.6)", fontSize: "14px", margin: "8px 0 0" }}>
               {boards.length} board{boards.length !== 1 ? "s" : ""}
             </p>
           </div>
@@ -111,13 +111,13 @@ export default function DashboardPage() {
               padding: "10px 20px",
               borderRadius: "10px",
               border: "none",
-              background: "linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%)",
+              background: "linear-gradient(135deg, #0871E7 0%, #0B5FCC 100%)",
               color: "#fff",
               fontFamily: "var(--font-sans)",
               fontSize: "14px",
               fontWeight: 600,
               cursor: "pointer",
-              boxShadow: "0 4px 20px rgba(124,58,237,0.35)",
+              boxShadow: "0 4px 20px rgba(8,113,231,0.35)",
               transition: "opacity 0.2s",
             }}
             onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.88")}
@@ -160,19 +160,20 @@ export default function DashboardPage() {
               initial={{ opacity: 0, scale: 0.92 }}
               animate={{ opacity: 1, scale: 1 }}
               style={{
-                background: "#1a1a27",
-                border: "1px solid rgba(255,255,255,0.1)",
+                background: "rgba(255,255,255,0.85)",
+                border: "1px solid rgba(26,26,26,0.1)",
                 borderRadius: "20px",
                 padding: "32px",
                 width: "min(90%, 440px)",
-                boxShadow: "0 24px 80px rgba(0,0,0,0.6)",
+                boxShadow: "0 24px 80px rgba(16,35,58,0.2)",
+                backdropFilter: "blur(12px)",
               }}
               onClick={(e) => e.stopPropagation()}
             >
-              <h2 style={{ fontFamily: "var(--font-instrument)", fontSize: "28px", color: "#f1f5f9", margin: "0 0 8px", letterSpacing: "-0.02em" }}>
+              <h2 style={{ fontFamily: "var(--font-instrument)", fontSize: "28px", color: "#1a1a1a", margin: "0 0 8px", letterSpacing: "-0.02em" }}>
                 New Board
               </h2>
-              <p style={{ color: "rgba(241,245,249,0.4)", fontSize: "14px", margin: "0 0 24px" }}>
+              <p style={{ color: "rgba(26,26,26,0.6)", fontSize: "14px", margin: "0 0 24px" }}>
                 Give your board a name to get started.
               </p>
               <input
@@ -185,11 +186,11 @@ export default function DashboardPage() {
                 style={{
                   width: "100%",
                   boxSizing: "border-box",
-                  background: "rgba(255,255,255,0.06)",
-                  border: "1px solid rgba(255,255,255,0.12)",
+                  background: "rgba(255,255,255,0.72)",
+                  border: "1px solid rgba(26,26,26,0.12)",
                   borderRadius: "10px",
                   padding: "12px 16px",
-                  color: "#f1f5f9",
+                  color: "#1a1a1a",
                   fontFamily: "var(--font-sans)",
                   fontSize: "15px",
                   outline: "none",
@@ -205,7 +206,7 @@ export default function DashboardPage() {
                     padding: "12px",
                     borderRadius: "10px",
                     border: "none",
-                    background: "linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%)",
+                    background: "linear-gradient(135deg, #0871E7 0%, #0B5FCC 100%)",
                     color: "#fff",
                     fontFamily: "var(--font-sans)",
                     fontSize: "14px",
@@ -221,9 +222,9 @@ export default function DashboardPage() {
                   style={{
                     padding: "12px 20px",
                     borderRadius: "10px",
-                    border: "1px solid rgba(255,255,255,0.1)",
-                    background: "rgba(255,255,255,0.05)",
-                    color: "rgba(255,255,255,0.5)",
+                    border: "1px solid rgba(26,26,26,0.12)",
+                    background: "rgba(255,255,255,0.5)",
+                    color: "rgba(26,26,26,0.6)",
                     fontFamily: "var(--font-sans)",
                     fontSize: "14px",
                     cursor: "pointer",
@@ -238,7 +239,7 @@ export default function DashboardPage() {
 
         {/* Board grid */}
         {loading ? (
-          <div style={{ textAlign: "center", padding: "80px 0", color: "rgba(241,245,249,0.25)", fontSize: "14px" }}>
+          <div style={{ textAlign: "center", padding: "80px 0", color: "rgba(26,26,26,0.4)", fontSize: "14px" }}>
             Loading boards…
           </div>
         ) : boards.length === 0 ? (
@@ -248,12 +249,12 @@ export default function DashboardPage() {
             style={{
               textAlign: "center",
               padding: "80px 0",
-              border: "1px dashed rgba(255,255,255,0.08)",
+              border: "1px dashed rgba(26,26,26,0.15)",
               borderRadius: "20px",
             }}
           >
             <div style={{ fontSize: "48px", marginBottom: "16px" }}>🖊️</div>
-            <p style={{ color: "rgba(241,245,249,0.35)", fontSize: "15px", margin: 0 }}>
+            <p style={{ color: "rgba(26,26,26,0.5)", fontSize: "15px", margin: 0 }}>
               No boards yet. Create your first one!
             </p>
           </motion.div>
@@ -272,30 +273,31 @@ export default function DashboardPage() {
                 transition={{ delay: i * 0.06 }}
                 onClick={() => navigate(`/board/${board.id}`)}
                 style={{
-                  background: "#14141f",
-                  border: "1px solid rgba(255,255,255,0.07)",
+                  background: "rgba(255,255,255,0.55)",
+                  border: "1px solid rgba(255,255,255,0.62)",
                   borderRadius: "16px",
                   padding: "24px",
                   cursor: "pointer",
                   transition: "all 0.2s",
                   position: "relative",
+                  backdropFilter: "blur(8px)",
                 }}
                 whileHover={{
                   y: -4,
-                  boxShadow: "0 12px 40px rgba(124,58,237,0.15)",
-                  borderColor: "rgba(124,58,237,0.35)",
+                  boxShadow: "0 12px 40px rgba(16,35,58,0.12)",
+                  borderColor: "rgba(8,113,231,0.4)",
                 }}
               >
                 {/* Preview area */}
                 <div style={{
-                  background: "linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)",
+                  background: "linear-gradient(135deg, rgba(236,245,251,0.94) 0%, rgba(220,236,246,0.92) 100%)",
                   borderRadius: "10px",
                   height: "120px",
                   marginBottom: "16px",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  backgroundImage: "radial-gradient(circle, rgba(255,255,255,0.04) 1px, transparent 1px)",
+                  backgroundImage: "radial-gradient(circle, rgba(26,26,26,0.06) 1px, transparent 1px)",
                   backgroundSize: "16px 16px",
                   position: "relative",
                   overflow: "hidden",
@@ -307,7 +309,7 @@ export default function DashboardPage() {
                   fontFamily: "var(--font-sans)",
                   fontSize: "15px",
                   fontWeight: 600,
-                  color: "#f1f5f9",
+                  color: "#1a1a1a",
                   margin: "0 0 6px",
                 }}>
                   {board.name}
@@ -315,7 +317,7 @@ export default function DashboardPage() {
                 <p style={{
                   fontFamily: "var(--font-sans)",
                   fontSize: "12px",
-                  color: "rgba(241,245,249,0.3)",
+                  color: "rgba(26,26,26,0.5)",
                   margin: "0 0 16px",
                 }}>
                   Created {timeAgo(board.created_at)}
@@ -328,9 +330,9 @@ export default function DashboardPage() {
                       flex: 1,
                       padding: "8px",
                       borderRadius: "8px",
-                      border: "1px solid rgba(124,58,237,0.3)",
-                      background: "rgba(124,58,237,0.12)",
-                      color: "#a78bfa",
+                      border: "1px solid rgba(8,113,231,0.3)",
+                      background: "rgba(8,113,231,0.12)",
+                      color: "#0871E7",
                       fontFamily: "var(--font-sans)",
                       fontSize: "13px",
                       fontWeight: 500,

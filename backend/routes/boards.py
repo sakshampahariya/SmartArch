@@ -32,6 +32,13 @@ async def create_board(body: CreateBoardRequest):
         "collaborators": [],
     }
     _boards[board_id] = board
+
+    # Persist owner + default draw permission in Redis
+    from services.redis_client import redis_client
+    if redis_client:
+        await redis_client.set(f"room:{board_id}:owner", body.created_by or "guest", ex=604800)
+        await redis_client.set(f"room:{board_id}:drawperm", "everyone", ex=604800)
+
     return board
 
 

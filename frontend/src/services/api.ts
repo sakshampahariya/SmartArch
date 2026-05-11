@@ -36,14 +36,47 @@ export const boardsApi = {
 
 // ── AI API ───────────────────────────────────────────────────────────────────
 
+export interface AIResponse {
+  type: "text" | "canvas";
+  suggestion: string;
+  elements?: CanvasElement[];
+  title?: string;
+}
+
+export interface CanvasElement {
+  kind: "rect" | "ellipse" | "diamond" | "arrow" | "text";
+  // rect / diamond
+  left?: number;
+  top?: number;
+  width?: number;
+  height?: number;
+  fill?: string;
+  stroke?: string;
+  strokeWidth?: number;
+  rx?: number;
+  label?: string;
+  labelColor?: string;
+  fontSize?: number;
+  // ellipse
+  cx?: number;
+  cy?: number;
+  rx2?: number;
+  ry?: number;
+  // arrow
+  x1?: number;
+  y1?: number;
+  x2?: number;
+  y2?: number;
+  // text
+  text?: string;
+  color?: string;
+}
+
 export const aiApi = {
   suggest: (canvasDescription: string, question: string) =>
     api
-      .post<{ suggestion: string }>("/api/ai/suggest", {
-        canvasDescription,
-        question,
-      })
-      .then((r) => r.data.suggestion),
+      .post<AIResponse>("/api/ai/suggest", { canvasDescription, question })
+      .then((r) => r.data),
 };
 
 export default api;

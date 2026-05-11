@@ -6,6 +6,7 @@ import AboutPage from "./pages/AboutPage";
 import ServicesPage from "./pages/ServicesPage";
 import BoardPage from "./pages/BoardPage";
 import DashboardPage from "./pages/DashboardPage";
+import { StartupSplash } from "./components/ui/StartupSplash";
 
 function setAuth(email: string) {
   localStorage.setItem("sa_user", JSON.stringify({ email, name: email.split("@")[0] }));
@@ -19,8 +20,7 @@ export function getAuth(): { email: string; name: string } | null {
   }
 }
 
-function LoginPage() {
-  const navigate = useNavigate();
+function LoginPage({ onLogin }: { onLogin: () => void }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -29,7 +29,7 @@ function LoginPage() {
     e.preventDefault();
     if (!email || !password) { setError("Please fill in all fields."); return; }
     setAuth(email);
-    navigate("/dashboard");
+    onLogin();
   };
 
   return (
@@ -44,15 +44,14 @@ function LoginPage() {
         <AuthSubmitBtn>Sign in →</AuthSubmitBtn>
         <p style={authLinkStyle}>
           No account?{" "}
-          <Link to="/signup" style={{ color: "#7c3aed", textDecoration: "none" }}>Sign up free</Link>
+          <Link to="/signup" style={{ color: "#0871E7", textDecoration: "none" }}>Sign up free</Link>
         </p>
       </form>
     </AuthLayout>
   );
 }
 
-function SignupPage() {
-  const navigate = useNavigate();
+function SignupPage({ onSignup }: { onSignup: () => void }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -62,7 +61,7 @@ function SignupPage() {
     e.preventDefault();
     if (!name || !email || !password) { setError("Please fill in all fields."); return; }
     setAuth(email);
-    navigate("/dashboard");
+    onSignup();
   };
 
   return (
@@ -78,7 +77,7 @@ function SignupPage() {
         <AuthSubmitBtn>Sign up →</AuthSubmitBtn>
         <p style={authLinkStyle}>
           Already have an account?{" "}
-          <Link to="/login" style={{ color: "#7c3aed", textDecoration: "none" }}>Sign in</Link>
+          <Link to="/login" style={{ color: "#0871E7", textDecoration: "none" }}>Sign in</Link>
         </p>
       </form>
     </AuthLayout>
@@ -93,24 +92,25 @@ function AuthLayout({ title, subtitle, children }: { title: string; subtitle: st
       alignItems: "center",
       justifyContent: "center",
       fontFamily: "var(--font-sans)",
-      background: "linear-gradient(135deg, #0a0a10 0%, #13131e 100%)",
+      background: "#F3F4ED",
       paddingTop: "80px",
     }}>
       <div style={{
-        background: "#14141f",
+        background: "rgba(255,255,255,0.55)",
+        backdropFilter: "blur(8px)",
         borderRadius: "20px",
         padding: "40px 36px",
         width: "min(90%, 420px)",
-        boxShadow: "0 24px 80px rgba(0,0,0,0.6)",
-        border: "1px solid rgba(255,255,255,0.08)",
+        boxShadow: "0 20px 50px rgba(16,35,58,0.12)",
+        border: "1px solid rgba(255,255,255,0.62)",
       }}>
-        <Link to="/" style={{ fontFamily: "var(--font-instrument)", fontSize: "22px", color: "#f1f5f9", textDecoration: "none", display: "block", marginBottom: "24px" }}>
+        <Link to="/" style={{ fontFamily: "var(--font-instrument)", fontSize: "22px", color: "#1a1a1a", textDecoration: "none", display: "block", marginBottom: "24px" }}>
           smartarch
         </Link>
-        <h2 style={{ fontFamily: "var(--font-instrument)", fontSize: "30px", letterSpacing: "-0.02em", color: "#f1f5f9", marginTop: 0, marginBottom: "6px" }}>
+        <h2 style={{ fontFamily: "var(--font-instrument)", fontSize: "30px", letterSpacing: "-0.02em", color: "#1a1a1a", marginTop: 0, marginBottom: "6px" }}>
           {title}
         </h2>
-        <p style={{ fontFamily: "var(--font-sans)", fontSize: "14px", color: "rgba(241,245,249,0.4)", marginBottom: "28px" }}>
+        <p style={{ fontFamily: "var(--font-sans)", fontSize: "14px", color: "rgba(26,26,26,0.6)", marginBottom: "28px" }}>
           {subtitle}
         </p>
         {children}
@@ -134,18 +134,18 @@ function AuthInput({ type, placeholder, value, onChange, required }: {
       onChange={(e) => onChange(e.target.value)}
       required={required}
       style={{
-        background: "rgba(255,255,255,0.05)",
-        border: "1px solid rgba(255,255,255,0.10)",
+        background: "rgba(255,255,255,0.72)",
+        border: "1px solid rgba(26,26,26,0.12)",
         borderRadius: "10px",
         padding: "11px 14px",
         fontFamily: "var(--font-sans)",
         fontSize: "14px",
-        color: "#f1f5f9",
+        color: "#1a1a1a",
         outline: "none",
         transition: "border-color 0.2s",
       }}
-      onFocus={(e) => (e.currentTarget.style.borderColor = "rgba(124,58,237,0.6)")}
-      onBlur={(e) => (e.currentTarget.style.borderColor = "rgba(255,255,255,0.10)")}
+      onFocus={(e) => (e.currentTarget.style.borderColor = "rgba(8,113,231,0.6)")}
+      onBlur={(e) => (e.currentTarget.style.borderColor = "rgba(26,26,26,0.12)")}
     />
   );
 }
@@ -153,7 +153,7 @@ function AuthInput({ type, placeholder, value, onChange, required }: {
 function AuthSubmitBtn({ children }: { children: React.ReactNode }) {
   return (
     <button type="submit" style={{
-      background: "linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%)",
+      background: "linear-gradient(135deg, #0871E7 0%, #0B5FCC 100%)",
       color: "#fff",
       border: "none",
       borderRadius: "10px",
@@ -162,7 +162,7 @@ function AuthSubmitBtn({ children }: { children: React.ReactNode }) {
       fontSize: "14px",
       fontWeight: 600,
       cursor: "pointer",
-      boxShadow: "0 4px 20px rgba(124,58,237,0.35)",
+      boxShadow: "0 4px 20px rgba(8,113,231,0.35)",
       transition: "opacity 0.2s",
     }}
       onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.88")}
@@ -185,14 +185,17 @@ const errorStyle: React.CSSProperties = {
 const authLinkStyle: React.CSSProperties = {
   fontFamily: "var(--font-sans)",
   fontSize: "13px",
-  color: "rgba(241,245,249,0.35)",
+  color: "rgba(26,26,26,0.6)",
   textAlign: "center",
 };
 
 function AppInner() {
   const location = useLocation();
+  const navigate = useNavigate();
   const isBoardPage = location.pathname.startsWith("/board");
   const hideNav = isBoardPage;
+  const [showSplash, setShowSplash] = useState(false);
+  const [pendingPath, setPendingPath] = useState<string | null>(null);
 
   const [, setTick] = useState(0);
   useEffect(() => {
@@ -201,15 +204,58 @@ function AppInner() {
     return () => window.removeEventListener("storage", onStorage);
   }, []);
 
+  const playSound = () => {
+    try {
+      const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioContext) return;
+      const ctx = new AudioContext();
+      const now = ctx.currentTime;
+      const playNote = (freq: number, start: number, duration: number) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "square";
+        osc.frequency.setValueAtTime(freq, start);
+        gain.gain.setValueAtTime(0.1, start);
+        gain.gain.exponentialRampToValueAtTime(0.01, start + duration);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(start);
+        osc.stop(start + duration);
+      };
+      const tempo = 0.15;
+      playNote(659.25, now + tempo * 0, 0.1); playNote(587.33, now + tempo * 1, 0.1);
+      playNote(369.99, now + tempo * 2, 0.2); playNote(415.30, now + tempo * 4, 0.2);
+      playNote(554.37, now + tempo * 6, 0.1); playNote(493.88, now + tempo * 7, 0.1);
+      playNote(293.66, now + tempo * 8, 0.2); playNote(329.63, now + tempo * 10, 0.2);
+      playNote(493.88, now + tempo * 12, 0.1); playNote(440.00, now + tempo * 13, 0.1);
+      playNote(277.18, now + tempo * 14, 0.2); playNote(329.63, now + tempo * 16, 0.2);
+      playNote(440.00, now + tempo * 18, 0.4);
+    } catch (e) {}
+  };
+
+  const handleStartApp = (path: string) => {
+    setPendingPath(path);
+    setShowSplash(true);
+  };
+
+  const onSplashComplete = () => {
+    setShowSplash(false);
+    if (pendingPath) {
+      navigate(pendingPath);
+      setPendingPath(null);
+    }
+  };
+
   return (
     <>
+      {showSplash && <StartupSplash onComplete={onSplashComplete} playSound={playSound} />}
       {!hideNav && <Navbar />}
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/about" element={<AboutPage />} />
         <Route path="/services" element={<ServicesPage />} />
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/signup" element={<SignupPage />} />
+        <Route path="/login" element={<LoginPage onLogin={() => handleStartApp("/dashboard")} />} />
+        <Route path="/signup" element={<SignupPage onSignup={() => handleStartApp("/dashboard")} />} />
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/board/:roomId" element={<BoardPage />} />
         <Route path="/board" element={<BoardPage />} />

@@ -35,14 +35,14 @@ function TypingMessages() {
   }, [displayText, isDeleting, messageIndex]);
 
   return (
-    <div className="absolute bottom-[33.5%] left-[48.6%] z-30 flex w-[86px] -translate-x-1/2 justify-start overflow-hidden text-left sm:w-[110px] md:left-[47.7%] md:w-[122px] lg:left-[48.6%]">
-      <span className="min-h-[1.5em] break-words [font-family:var(--font-nokia)] text-[10px] leading-tight text-[#2A3616] sm:text-[14px]">
+    <div className="absolute bottom-[23%] left-[48.5%] z-30 flex h-[80px] w-[140px] -translate-x-1/2 flex-col items-center justify-center overflow-hidden text-center sm:w-[160px] md:bottom-[24%] md:w-[180px] lg:bottom-[23%]">
+      <span className="[font-family:var(--font-nokia)] text-[12px] leading-tight text-[#2A3616] sm:text-[16px]">
         {displayText}
       </span>
       <motion.span
         animate={{ opacity: [0, 1, 0] }}
         transition={{ duration: 0.8, repeat: Infinity, ease: "linear" }}
-        className="ml-1 inline-block h-3 w-1.5 align-middle bg-[#2A3616]"
+        className="mt-1 inline-block h-3 w-1.5 shrink-0 bg-[#2A3616]"
       />
     </div>
   );
@@ -145,14 +145,14 @@ const submitStyle: React.CSSProperties = {
 export default function HomePage() {
   return (
     <div style={{ background: "#F3F4ED" }}>
-      <section className="relative flex min-h-screen flex-col items-center justify-start overflow-hidden bg-[#F3F4ED] pt-32 text-center md:pt-36">
+      <section className="relative flex min-h-screen flex-col items-center justify-start overflow-hidden bg-[#F3F4ED] pt-32 pb-24 text-center md:pt-36">
         <div className="absolute inset-0 z-0 overflow-hidden">
           <video
             autoPlay
             loop
             muted
             playsInline
-            className="h-full w-full object-cover object-[center_38%] md:object-center"
+            className="h-full w-full object-cover object-center"
             src="https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260427_054418_a6d194f0-ac86-4df9-abe5-ded73e596d7c.mp4"
           />
           <div className="absolute inset-0 bg-white/5" />
@@ -165,7 +165,7 @@ export default function HomePage() {
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 1.5, ease: [0.16, 1, 0.3, 1] }}
-            className="font-instrument mb-6 text-[38px] leading-[0.85] tracking-tight text-[#1a1a1a] md:text-[56px] lg:text-[72px]"
+            className="font-instrument mx-auto mb-6 max-w-[95vw] text-[56px] leading-[0.9] tracking-tight text-[#1a1a1a] md:max-w-[1000px] md:text-[84px] lg:max-w-[1200px] lg:text-[116px]"
           >
             Your vision,
             <br />

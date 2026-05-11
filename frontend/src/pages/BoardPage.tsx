@@ -1,78 +1,98 @@
-import { useEffect, useState, useCallback } from "react";
-import { useParams, useNavigate, Link } from "react-router-dom";
-import { CanvasBoard } from "../components/canvas/CanvasBoard";
+import { useEffect, useState, useCallback, useRef } from "react";
+import { useParams, useNavigate, Link, useLocation } from "react-router-dom";
+import { CanvasBoard, type CanvasBoardHandle } from "../components/canvas/CanvasBoard";
+import { RemoteCursors } from "../components/canvas/RemoteCursors";
 import { AISuggestionPanel } from "../components/ai/AISuggestionPanel";
+import { RoomPanel } from "../components/ui/RoomPanel";
+import { JoinRoomModal } from "../components/ui/JoinRoomModal";
 import { useRoomStore } from "../stores/roomStore";
 import { useCanvasStore } from "../stores/canvasStore";
-import { boardsApi, type Board } from "../services/api";
+import { boardsApi, type Board, type CanvasElement } from "../services/api";
 
 export default function BoardPage() {
-  const { roomId } = useParams<{ roomId: string }>();
+  const { roomId: pathRoomId } = useParams<{ roomId: string }>();
+  const location = useLocation();
+  const queryRoomId = new URLSearchParams(location.search).get("room");
+  const effectiveRoomId = pathRoomId || queryRoomId;
+
   const navigate = useNavigate();
-  const setRoomId = useRoomStore((state) => state.setRoomId);
+  const storeRoomId = useRoomStore((state) => state.roomId);
+  const myRole = useRoomStore((state) => state.myRole);
   const users = useRoomStore((state) => state.users);
   const canvasJSON = useCanvasStore((state) => state.canvasJSON);
+  const isDarkMode = useCanvasStore((state) => state.isDarkMode);
 
   const [board, setBoard] = useState<Board | null>(null);
   const [aiOpen, setAiOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [editingName, setEditingName] = useState(false);
   const [boardName, setBoardName] = useState("Untitled Board");
+  const [hasJoined, setHasJoined] = useState(false);
+  const canvasBoardRef = useRef<CanvasBoardHandle>(null);
 
-  // Auto-generate a room id if none is in the URL
-  useEffect(() => {
-    if (!roomId) {
-      navigate(`/board/${crypto.randomUUID()}`, { replace: true });
-    } else {
-      setRoomId(roomId);
+  const handleDrawElements = useCallback((elements: CanvasElement[]) => {
+    canvasBoardRef.current?.drawAIElements(elements);
+  }, []);
+
+  const handleJoined = useCallback(() => {
+    setHasJoined(true);
+    const currentRoomId = useRoomStore.getState().roomId;
+    if (currentRoomId && currentRoomId !== pathRoomId) {
+      navigate(`/board/${currentRoomId}`, { replace: true });
     }
-  }, [roomId, setRoomId, navigate]);
+  }, [navigate, pathRoomId]);
 
-  // Fetch or auto-create the board record via REST
+  // Fetch board info once joined
   useEffect(() => {
-    if (!roomId) return;
+    if (!hasJoined || !storeRoomId) return;
     boardsApi
-      .get(roomId)
+      .get(storeRoomId)
       .then((b) => {
         setBoard(b);
         setBoardName(b.name);
       })
-      .catch(() => {
-        // Board doesn't exist yet — create it
-        boardsApi
-          .create("Untitled Board", "guest")
-          .then((b) => {
-            setBoard(b);
-            setBoardName(b.name);
-          })
+      .catch(console.error);
+  }, [hasJoined, storeRoomId]);
+
+  // Auto-save board every 30s (owner only)
+  useEffect(() => {
+    if (!hasJoined || !storeRoomId || myRole !== "owner") return;
+    
+    const interval = setInterval(() => {
+      const currentJson = useCanvasStore.getState().canvasJSON;
+      if (currentJson && currentJson !== "{}") {
+        boardsApi.update(storeRoomId, { canvas_json: currentJson, name: boardName })
           .catch(console.error);
-      });
-  }, [roomId]);
+      }
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [hasJoined, storeRoomId, myRole, boardName]);
 
   const handleCopyLink = useCallback(() => {
-    void navigator.clipboard.writeText(window.location.href).then(() => {
+    const shareUrl = `${window.location.origin}/board/${storeRoomId}`;
+    void navigator.clipboard.writeText(shareUrl).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }).catch(() => {
+      navigator.clipboard.writeText(storeRoomId ?? "");
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     });
-  }, []);
+  }, [storeRoomId]);
 
   const handleSaveName = useCallback(() => {
-    if (!roomId || !boardName.trim()) return;
+    if (!storeRoomId || !boardName.trim() || myRole !== "owner") return;
     setEditingName(false);
-    boardsApi.update(roomId, { name: boardName }).then(setBoard).catch(console.error);
-  }, [roomId, boardName]);
+    boardsApi.update(storeRoomId, { name: boardName }).then(setBoard).catch(console.error);
+  }, [storeRoomId, boardName, myRole]);
 
-  // Auto-save canvas JSON via REST every 10 s when changed
-  useEffect(() => {
-    if (!roomId || !canvasJSON || canvasJSON === "{}") return;
-    const timer = setTimeout(() => {
-      boardsApi.update(roomId, { canvas_json: canvasJSON }).catch(console.error);
-    }, 10_000);
-    return () => clearTimeout(timer);
-  }, [canvasJSON, roomId]);
+  if (!hasJoined) {
+    return <JoinRoomModal onJoined={handleJoined} initialRoomId={effectiveRoomId ?? undefined} />;
+  }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100dvh", overflow: "hidden", background: "#0f0f13" }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100dvh", overflow: "hidden", background: isDarkMode ? "#0f0f13" : "#F3F4ED" }}>
       {/* ── Top Header ── */}
       <header style={{
         display: "flex",
@@ -80,25 +100,26 @@ export default function BoardPage() {
         justifyContent: "space-between",
         padding: "0 16px",
         height: "52px",
-        background: "#16161e",
-        borderBottom: "1px solid rgba(255,255,255,0.07)",
+        background: isDarkMode ? "#16161e" : "#ffffff",
+        borderBottom: isDarkMode ? "1px solid rgba(255,255,255,0.07)" : "1px solid rgba(26,26,26,0.08)",
         flexShrink: 0,
         gap: "12px",
         zIndex: 30,
+        boxShadow: isDarkMode ? "none" : "0 1px 10px rgba(0,0,0,0.02)",
       }}>
         {/* Left: Logo + Board Name */}
         <div style={{ display: "flex", alignItems: "center", gap: "16px", minWidth: 0 }}>
           <Link to="/" style={{
             fontFamily: "var(--font-instrument)",
             fontSize: "19px",
-            color: "#fff",
+            color: isDarkMode ? "#fff" : "#1a1a1a",
             textDecoration: "none",
             letterSpacing: "-0.02em",
             flexShrink: 0,
           }}>
             smartarch
           </Link>
-          <span style={{ color: "rgba(255,255,255,0.2)", fontSize: "18px" }}>/</span>
+          <span style={{ color: isDarkMode ? "rgba(255,255,255,0.2)" : "rgba(26,26,26,0.3)", fontSize: "18px" }}>/</span>
           {editingName ? (
             <input
               autoFocus
@@ -107,11 +128,11 @@ export default function BoardPage() {
               onBlur={handleSaveName}
               onKeyDown={(e) => e.key === "Enter" && handleSaveName()}
               style={{
-                background: "rgba(255,255,255,0.08)",
-                border: "1px solid rgba(255,255,255,0.18)",
+                background: isDarkMode ? "rgba(255,255,255,0.08)" : "rgba(26,26,26,0.04)",
+                border: isDarkMode ? "1px solid rgba(255,255,255,0.18)" : "1px solid rgba(26,26,26,0.12)",
                 borderRadius: "6px",
                 padding: "4px 10px",
-                color: "#fff",
+                color: isDarkMode ? "#fff" : "#1a1a1a",
                 fontFamily: "var(--font-sans)",
                 fontSize: "14px",
                 outline: "none",
@@ -120,20 +141,20 @@ export default function BoardPage() {
             />
           ) : (
             <button
-              onClick={() => setEditingName(true)}
+              onClick={() => myRole === "owner" && setEditingName(true)}
               style={{
                 background: "none",
                 border: "none",
-                color: "rgba(255,255,255,0.82)",
+                color: isDarkMode ? "rgba(255,255,255,0.82)" : "rgba(26,26,26,0.85)",
                 fontFamily: "var(--font-sans)",
                 fontSize: "14px",
                 fontWeight: 500,
-                cursor: "text",
+                cursor: myRole === "owner" ? "pointer" : "default",
                 padding: "4px 8px",
                 borderRadius: "6px",
                 transition: "background 0.2s",
               }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.07)")}
+              onMouseEnter={(e) => myRole === "owner" && (e.currentTarget.style.background = isDarkMode ? "rgba(255,255,255,0.07)" : "rgba(26,26,26,0.04)")}
               onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
             >
               {board ? boardName : "Loading…"}
@@ -183,9 +204,9 @@ export default function BoardPage() {
               gap: "6px",
               padding: "7px 14px",
               borderRadius: "8px",
-              border: "1px solid rgba(255,255,255,0.12)",
-              background: copied ? "rgba(0,189,125,0.18)" : "rgba(255,255,255,0.06)",
-              color: copied ? "#00BD7D" : "rgba(255,255,255,0.75)",
+              border: isDarkMode ? "1px solid rgba(255,255,255,0.12)" : "1px solid rgba(26,26,26,0.15)",
+              background: copied ? "rgba(0,189,125,0.18)" : (isDarkMode ? "rgba(255,255,255,0.06)" : "transparent"),
+              color: copied ? "#00BD7D" : (isDarkMode ? "rgba(255,255,255,0.75)" : "rgba(26,26,26,0.75)"),
               fontFamily: "var(--font-sans)",
               fontSize: "13px",
               fontWeight: 500,
@@ -208,9 +229,9 @@ export default function BoardPage() {
               gap: "6px",
               padding: "7px 14px",
               borderRadius: "8px",
-              border: "1px solid rgba(124,58,237,0.4)",
-              background: aiOpen ? "rgba(124,58,237,0.22)" : "rgba(124,58,237,0.10)",
-              color: "#a78bfa",
+              border: isDarkMode ? "1px solid rgba(124,58,237,0.4)" : "1px solid rgba(8,113,231,0.4)",
+              background: aiOpen ? (isDarkMode ? "rgba(124,58,237,0.22)" : "rgba(8,113,231,0.12)") : (isDarkMode ? "rgba(124,58,237,0.10)" : "transparent"),
+              color: isDarkMode ? "#a78bfa" : "#0871E7",
               fontFamily: "var(--font-sans)",
               fontSize: "13px",
               fontWeight: 500,
@@ -228,7 +249,8 @@ export default function BoardPage() {
       <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
         {/* Canvas */}
         <div style={{ flex: 1, position: "relative", overflow: "hidden" }}>
-          <CanvasBoard />
+          <CanvasBoard ref={canvasBoardRef} />
+          <RemoteCursors />
         </div>
 
         {/* AI Side Panel */}
@@ -236,8 +258,8 @@ export default function BoardPage() {
           <div style={{
             width: "320px",
             flexShrink: 0,
-            background: "#16161e",
-            borderLeft: "1px solid rgba(255,255,255,0.07)",
+            background: isDarkMode ? "#16161e" : "#f8fafc",
+            borderLeft: isDarkMode ? "1px solid rgba(255,255,255,0.07)" : "1px solid rgba(26,26,26,0.08)",
             display: "flex",
             flexDirection: "column",
             overflowY: "auto",
@@ -248,40 +270,41 @@ export default function BoardPage() {
               alignItems: "center",
               justifyContent: "space-between",
               padding: "16px 20px",
-              borderBottom: "1px solid rgba(255,255,255,0.07)",
+              borderBottom: isDarkMode ? "1px solid rgba(255,255,255,0.07)" : "1px solid rgba(26,26,26,0.08)",
             }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", color: isDarkMode ? "#a78bfa" : "#0871E7" }}>
                 <SparkleIcon />
                 <span style={{
                   fontFamily: "var(--font-sans)",
                   fontSize: "14px",
                   fontWeight: 600,
-                  color: "#a78bfa",
                 }}>AI Assistant</span>
               </div>
               <button
                 onClick={() => setAiOpen(false)}
-                style={{ background: "none", border: "none", color: "rgba(255,255,255,0.4)", cursor: "pointer", fontSize: "18px", lineHeight: 1 }}
+                style={{ background: "none", border: "none", color: isDarkMode ? "rgba(255,255,255,0.4)" : "rgba(26,26,26,0.4)", cursor: "pointer", fontSize: "18px", lineHeight: 1 }}
               >×</button>
             </div>
 
             {/* Room Info */}
-            <div style={{ padding: "16px 20px", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-              <p style={{ fontFamily: "var(--font-sans)", fontSize: "11px", letterSpacing: "0.1em", textTransform: "uppercase", color: "rgba(255,255,255,0.3)", margin: "0 0 6px 0", fontWeight: 600 }}>
+            <div style={{ padding: "16px 20px", borderBottom: isDarkMode ? "1px solid rgba(255,255,255,0.06)" : "1px solid rgba(26,26,26,0.06)" }}>
+              <p style={{ fontFamily: "var(--font-sans)", fontSize: "11px", letterSpacing: "0.1em", textTransform: "uppercase", color: isDarkMode ? "rgba(255,255,255,0.3)" : "rgba(26,26,26,0.4)", margin: "0 0 6px 0", fontWeight: 600 }}>
                 Room ID
               </p>
-              <p style={{ fontFamily: "monospace", fontSize: "11px", color: "rgba(255,255,255,0.55)", margin: 0, wordBreak: "break-all", lineHeight: 1.5 }}>
+              <p style={{ fontFamily: "monospace", fontSize: "11px", color: isDarkMode ? "rgba(255,255,255,0.55)" : "rgba(26,26,26,0.7)", margin: 0, wordBreak: "break-all", lineHeight: 1.5 }}>
                 {roomId}
               </p>
             </div>
 
             {/* AI Panel Content */}
             <div style={{ padding: "16px 20px", flex: 1 }}>
-              <AISuggestionPanel canvasJSON={canvasJSON} />
+              <AISuggestionPanel canvasJSON={canvasJSON} onDrawElements={handleDrawElements} />
             </div>
           </div>
         )}
       </div>
+      {/* Floating Room Panel */}
+      <RoomPanel />
     </div>
   );
 }
