@@ -10,7 +10,7 @@ import {
   FabricText,
   Ellipse,
   type FabricObject,
-  type Point,
+  Point,
   type TPointerEventInfo,
 } from "fabric";
 import { useFabric } from "./useFabric";
