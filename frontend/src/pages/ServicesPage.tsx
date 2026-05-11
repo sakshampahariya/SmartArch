@@ -1,6 +1,7 @@
 import { motion } from "motion/react";
 import { useNavigate } from "react-router-dom";
-import { getAuth } from "../App";
+import { supabase } from "../services/supabase";
+import { useState, useEffect } from "react";
 
 const SERVICES = [
   {
@@ -55,7 +56,10 @@ const SERVICES = [
 
 export default function ServicesPage() {
   const navigate = useNavigate();
-  const user = getAuth();
+  const [user, setUser] = useState<any>(null);
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => setUser(user));
+  }, []);
 
   const handleServiceClick = () => {
     if (!user) {

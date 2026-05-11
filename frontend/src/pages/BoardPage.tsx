@@ -8,6 +8,7 @@ import { JoinRoomModal } from "../components/ui/JoinRoomModal";
 import { useRoomStore } from "../stores/roomStore";
 import { useCanvasStore } from "../stores/canvasStore";
 import { supabase } from "../services/supabase";
+import { useSocket } from "../hooks/useSocket";
 import type { CanvasElement } from "../services/api";
 
 export default function BoardPage() {
@@ -30,6 +31,7 @@ export default function BoardPage() {
   const [boardName, setBoardName] = useState("Untitled Board");
   const [hasJoined, setHasJoined] = useState(false);
   const canvasBoardRef = useRef<CanvasBoardHandle>(null);
+  const { emit } = useSocket();
 
   const handleDrawElements = useCallback((elements: CanvasElement[]) => {
     canvasBoardRef.current?.drawAIElements(elements);
@@ -61,25 +63,41 @@ export default function BoardPage() {
       });
   }, [hasJoined, storeRoomId]);
 
-  // Auto-save board every 30s (owner only)
+  // Save canvas to Supabase + notify peers via socket
+  const saveCanvas = useCallback(() => {
+    if (!storeRoomId) return;
+    const currentJson = useCanvasStore.getState().canvasJSON;
+    if (!currentJson || currentJson === "{}") return;
+
+    // Tell backend/peers about the canvas state (real-time sync)
+    emit("canvas_saved", { roomId: storeRoomId, canvasJSON: currentJson });
+
+    // Persist directly to Supabase
+    try {
+      const parsed = JSON.parse(currentJson);
+      supabase
+        .from("boards")
+        .update({ canvas_json: parsed })
+        .eq("id", storeRoomId)
+        .then(({ error }) => {
+          if (error) console.error("Auto-save failed", error);
+        });
+    } catch (e) {
+      console.error("Canvas JSON parse error", e);
+    }
+  }, [storeRoomId, emit]);
+
+  // Auto-save every 10 seconds (owner only)
   useEffect(() => {
     if (!hasJoined || !storeRoomId || myRole !== "owner") return;
-    
-    const interval = setInterval(() => {
-      const currentJson = useCanvasStore.getState().canvasJSON;
-      if (currentJson && currentJson !== "{}") {
-        supabase
-          .from("boards")
-          .update({ canvas_json: JSON.parse(currentJson), name: boardName })
-          .eq("id", storeRoomId)
-          .then(({ error }) => {
-            if (error) console.error("Auto-save failed", error);
-          });
-      }
-    }, 30000);
-
-    return () => clearInterval(interval);
-  }, [hasJoined, storeRoomId, myRole, boardName]);
+    const interval = setInterval(saveCanvas, 10000);
+    // Also save immediately when window/tab closes
+    window.addEventListener("beforeunload", saveCanvas);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("beforeunload", saveCanvas);
+    };
+  }, [hasJoined, storeRoomId, myRole, saveCanvas]);
 
   const handleCopyLink = useCallback(() => {
     const shareUrl = `${window.location.origin}/board/${storeRoomId}`;

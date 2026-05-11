@@ -1,13 +1,21 @@
 import json
+import os
 import random
+import time
 
 import socketio
+from supabase import create_client
 
 from services.redis_client import redis_client
 
 sio = socketio.AsyncServer(async_mode="asgi", cors_allowed_origins="*")
 
 COLORS = ["#EF4444", "#F59E0B", "#10B981", "#3B82F6", "#8B5CF6", "#EC4899", "#14B8A6", "#F97316"]
+
+# Supabase client for persistent storage
+_supabase_url = os.getenv("SUPABASE_URL")
+_supabase_key = os.getenv("SUPABASE_KEY")
+supabase = create_client(_supabase_url, _supabase_key) if _supabase_url and _supabase_key else None
 
 
 def _room_key(room_id: str) -> str:
@@ -42,7 +50,6 @@ async def room_join(sid, data):
     room_id = data.get("roomId")
     user_id = data.get("userId") or sid
     name = data.get("name", "Anonymous")
-    role = data.get("role", "collaborator")
 
     if not room_id:
         return
@@ -52,6 +59,16 @@ async def room_join(sid, data):
 
     color = random.choice(COLORS)
 
+    # ── Determine role from Supabase (board owner = creator) ──────────────────
+    role = "collaborator"
+    if supabase:
+        try:
+            result = supabase.table("boards").select("created_by").eq("id", room_id).single().execute()
+            if result.data and result.data.get("created_by") == user_id:
+                role = "owner"
+        except Exception as e:
+            print(f"[room_join] Supabase lookup error: {e}")
+
     user = {
         "userId": user_id,
         "name": name,
@@ -59,50 +76,58 @@ async def room_join(sid, data):
         "role": role,
         "cursor": {"x": 0, "y": 0},
         "isOnline": True,
-        "joinedAt": __import__("time").time(),
+        "joinedAt": time.time(),
     }
 
-    if redis_client:
-        # If owner key not set yet, this user is the owner
-        owner = await redis_client.get(_owner_key(room_id))
-        if not owner:
-            await redis_client.set(_owner_key(room_id), user_id, ex=604800)
-            await redis_client.set(_perm_key(room_id), "everyone", ex=604800)
-            role = "owner"
-            user["role"] = "owner"
+    draw_perm = "everyone"
+    canvas_json = "{}"
 
-        # Restore role if re-joining
+    if redis_client:
+        # Restore color if returning user
         existing_raw = await redis_client.hget(_room_key(room_id), user_id)
         if existing_raw:
             existing = json.loads(existing_raw)
-            user["role"] = existing.get("role", role)
             user["color"] = existing.get("color", color)
+
+        # Store draw perm
+        stored_perm = await redis_client.get(_perm_key(room_id))
+        if stored_perm:
+            draw_perm = stored_perm
+        elif role == "owner":
+            await redis_client.set(_perm_key(room_id), "everyone", ex=604800)
 
         await redis_client.hset(_room_key(room_id), user_id, json.dumps(user))
         await redis_client.expire(_room_key(room_id), 86400)
 
-        # Send full room state to the joining user
+        # Try Redis cache first, then fall back to Supabase
+        canvas_json = await redis_client.get(_canvas_key(room_id)) or "{}"
+
+    # If canvas not in Redis, load from Supabase
+    if canvas_json == "{}" and supabase:
+        try:
+            result = supabase.table("boards").select("canvas_json").eq("id", room_id).single().execute()
+            if result.data and result.data.get("canvas_json"):
+                saved = result.data["canvas_json"]
+                canvas_json = json.dumps(saved) if isinstance(saved, dict) else saved
+                # Warm Redis cache
+                if redis_client:
+                    await redis_client.setex(_canvas_key(room_id), 86400, canvas_json)
+        except Exception as e:
+            print(f"[room_join] Canvas load error: {e}")
+
+    # Build full user list from Redis
+    all_users = [user]
+    if redis_client:
         all_users_raw = await redis_client.hgetall(_room_key(room_id))
         all_users = [json.loads(v) for v in all_users_raw.values()]
-        draw_perm = await redis_client.get(_perm_key(room_id)) or "everyone"
-        canvas_json = await redis_client.get(_canvas_key(room_id))
 
-        await sio.emit("room:state", {
-            "users": all_users,
-            "drawPermission": draw_perm,
-            "canvasJSON": canvas_json or "{}",
-            "myRole": user["role"],
-            "myColor": user["color"],
-        }, to=sid)
-    else:
-        # Fallback (no Redis): just confirm join
-        await sio.emit("room:state", {
-            "users": [user],
-            "drawPermission": "everyone",
-            "canvasJSON": "{}",
-            "myRole": role,
-            "myColor": color,
-        }, to=sid)
+    await sio.emit("room:state", {
+        "users": all_users,
+        "drawPermission": draw_perm,
+        "canvasJSON": canvas_json,
+        "myRole": user["role"],
+        "myColor": user["color"],
+    }, to=sid)
 
     # Notify other room members
     await sio.emit("user:joined", user, room=room_id, skip_sid=sid)
@@ -133,10 +158,25 @@ async def object_removed(sid, data):
 
 @sio.event
 async def canvas_saved(sid, data):
+    """Called by the owner's client to persist the full canvas state."""
     room_id = data.get("roomId")
     canvas_json = data.get("canvasJSON", "{}")
-    if room_id and redis_client:
+
+    if not room_id:
+        return
+
+    # Always cache in Redis for fast real-time access
+    if redis_client:
         await redis_client.setex(_canvas_key(room_id), 86400, canvas_json)
+
+    # Persist to Supabase for permanent storage
+    if supabase:
+        try:
+            parsed = json.loads(canvas_json) if isinstance(canvas_json, str) else canvas_json
+            supabase.table("boards").update({"canvas_json": parsed}).eq("id", room_id).execute()
+            print(f"[canvas_saved] Board {room_id} saved to Supabase ✓")
+        except Exception as e:
+            print(f"[canvas_saved] Supabase save error: {e}")
 
 
 # ── CURSOR ────────────────────────────────────────────────────────────────────
@@ -154,15 +194,25 @@ async def permission_change(sid, data):
     user_id = data.get("userId")
     draw_perm = data.get("drawPermission", "everyone")
 
-    if not room_id or not redis_client:
+    if not room_id:
         return
 
-    owner = await redis_client.get(_owner_key(room_id))
-    if owner != user_id:
+    # Verify ownership via Supabase
+    is_owner = False
+    if supabase:
+        try:
+            result = supabase.table("boards").select("created_by").eq("id", room_id).single().execute()
+            is_owner = result.data and result.data.get("created_by") == user_id
+        except Exception:
+            pass
+
+    if not is_owner:
         await sio.emit("error:unauthorized", {"message": "Only owner can change permissions"}, to=sid)
         return
 
-    await redis_client.set(_perm_key(room_id), draw_perm, ex=604800)
+    if redis_client:
+        await redis_client.set(_perm_key(room_id), draw_perm, ex=604800)
+
     await sio.emit("permission:changed", {"drawPermission": draw_perm}, room=room_id)
     print(f"[permission] Room {room_id} → {draw_perm}")
 
@@ -178,8 +228,16 @@ async def role_change(sid, data):
     if not room_id or not redis_client:
         return
 
-    owner = await redis_client.get(_owner_key(room_id))
-    if owner != requester_id:
+    # Verify ownership
+    is_owner = False
+    if supabase:
+        try:
+            result = supabase.table("boards").select("created_by").eq("id", room_id).single().execute()
+            is_owner = result.data and result.data.get("created_by") == requester_id
+        except Exception:
+            pass
+
+    if not is_owner:
         return
 
     user_raw = await redis_client.hget(_room_key(room_id), target_user_id)

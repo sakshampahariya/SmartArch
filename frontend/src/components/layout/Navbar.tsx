@@ -1,5 +1,6 @@
 import { NavLink, useNavigate } from "react-router-dom";
-import { getAuth } from "../../App";
+import { supabase } from "../../services/supabase";
+import { useState, useEffect } from "react";
 
 const NAV_LINKS = [
   { label: "Home", to: "/" },
@@ -10,7 +11,15 @@ const NAV_LINKS = [
 
 export default function Navbar() {
   const navigate = useNavigate();
-  const user = getAuth();
+  const [user, setUser] = useState<any>(null);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => setUser(user));
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
+      setUser(session?.user ?? null);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
 
   const handleContactUs = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -24,8 +33,8 @@ export default function Navbar() {
     }
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem("sa_user");
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
     navigate("/");
   };
 
@@ -169,7 +178,7 @@ export default function Navbar() {
             </>
           ) : (
             <NavLink
-              to="/signup"
+              to="/dashboard"
               style={{
                 position: "relative",
                 background: "#7c3aed",

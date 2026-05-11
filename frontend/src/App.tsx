@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, useLocation, Link, useNavigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useLocation, Navigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import Navbar from "./components/layout/Navbar";
 import HomePage from "./pages/HomePage";
@@ -7,202 +7,28 @@ import ServicesPage from "./pages/ServicesPage";
 import BoardPage from "./pages/BoardPage";
 import DashboardPage from "./pages/DashboardPage";
 import { StartupSplash } from "./components/ui/StartupSplash";
+import { supabase } from "./services/supabase";
+import type { Session } from "@supabase/supabase-js";
 
-function setAuth(email: string) {
-  localStorage.setItem("sa_user", JSON.stringify({ email, name: email.split("@")[0] }));
-}
-export function getAuth(): { email: string; name: string } | null {
-  try {
-    const raw = localStorage.getItem("sa_user");
-    return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
-  }
+// Protected route – redirects to /dashboard (which shows login) if not authed
+function ProtectedRoute({ session, children }: { session: Session | null; children: React.ReactNode }) {
+  if (!session) return <Navigate to="/dashboard" replace />;
+  return <>{children}</>;
 }
 
-function LoginPage({ onLogin }: { onLogin: () => void }) {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!email || !password) { setError("Please fill in all fields."); return; }
-    setAuth(email);
-    onLogin();
-  };
-
-  return (
-    <AuthLayout
-      title="Welcome back."
-      subtitle="Sign in to your SmartArch Board account."
-    >
-      <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-        {error && <p style={errorStyle}>{error}</p>}
-        <AuthInput type="email" placeholder="Email address" value={email} onChange={setEmail} required />
-        <AuthInput type="password" placeholder="Password" value={password} onChange={setPassword} required />
-        <AuthSubmitBtn>Sign in →</AuthSubmitBtn>
-        <p style={authLinkStyle}>
-          No account?{" "}
-          <Link to="/signup" style={{ color: "#0871E7", textDecoration: "none" }}>Sign up free</Link>
-        </p>
-      </form>
-    </AuthLayout>
-  );
-}
-
-function SignupPage({ onSignup }: { onSignup: () => void }) {
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!name || !email || !password) { setError("Please fill in all fields."); return; }
-    setAuth(email);
-    onSignup();
-  };
-
-  return (
-    <AuthLayout
-      title="Create an account."
-      subtitle="Join SmartArch Board and start designing."
-    >
-      <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-        {error && <p style={errorStyle}>{error}</p>}
-        <AuthInput type="text" placeholder="Full name" value={name} onChange={setName} required />
-        <AuthInput type="email" placeholder="Email address" value={email} onChange={setEmail} required />
-        <AuthInput type="password" placeholder="Create password" value={password} onChange={setPassword} required />
-        <AuthSubmitBtn>Sign up →</AuthSubmitBtn>
-        <p style={authLinkStyle}>
-          Already have an account?{" "}
-          <Link to="/login" style={{ color: "#0871E7", textDecoration: "none" }}>Sign in</Link>
-        </p>
-      </form>
-    </AuthLayout>
-  );
-}
-
-function AuthLayout({ title, subtitle, children }: { title: string; subtitle: string; children: React.ReactNode }) {
-  return (
-    <div style={{
-      minHeight: "100dvh",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      fontFamily: "var(--font-sans)",
-      background: "#F3F4ED",
-      paddingTop: "80px",
-    }}>
-      <div style={{
-        background: "rgba(255,255,255,0.55)",
-        backdropFilter: "blur(8px)",
-        borderRadius: "20px",
-        padding: "40px 36px",
-        width: "min(90%, 420px)",
-        boxShadow: "0 20px 50px rgba(16,35,58,0.12)",
-        border: "1px solid rgba(255,255,255,0.62)",
-      }}>
-        <Link to="/" style={{ fontFamily: "var(--font-instrument)", fontSize: "22px", color: "#1a1a1a", textDecoration: "none", display: "block", marginBottom: "24px" }}>
-          smartarch
-        </Link>
-        <h2 style={{ fontFamily: "var(--font-instrument)", fontSize: "30px", letterSpacing: "-0.02em", color: "#1a1a1a", marginTop: 0, marginBottom: "6px" }}>
-          {title}
-        </h2>
-        <p style={{ fontFamily: "var(--font-sans)", fontSize: "14px", color: "rgba(26,26,26,0.6)", marginBottom: "28px" }}>
-          {subtitle}
-        </p>
-        {children}
-      </div>
-    </div>
-  );
-}
-
-function AuthInput({ type, placeholder, value, onChange, required }: {
-  type: string;
-  placeholder: string;
-  value: string;
-  onChange: (v: string) => void;
-  required?: boolean;
-}) {
-  return (
-    <input
-      type={type}
-      placeholder={placeholder}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      required={required}
-      style={{
-        background: "rgba(255,255,255,0.72)",
-        border: "1px solid rgba(26,26,26,0.12)",
-        borderRadius: "10px",
-        padding: "11px 14px",
-        fontFamily: "var(--font-sans)",
-        fontSize: "14px",
-        color: "#1a1a1a",
-        outline: "none",
-        transition: "border-color 0.2s",
-      }}
-      onFocus={(e) => (e.currentTarget.style.borderColor = "rgba(8,113,231,0.6)")}
-      onBlur={(e) => (e.currentTarget.style.borderColor = "rgba(26,26,26,0.12)")}
-    />
-  );
-}
-
-function AuthSubmitBtn({ children }: { children: React.ReactNode }) {
-  return (
-    <button type="submit" style={{
-      background: "linear-gradient(135deg, #0871E7 0%, #0B5FCC 100%)",
-      color: "#fff",
-      border: "none",
-      borderRadius: "10px",
-      padding: "12px",
-      fontFamily: "var(--font-sans)",
-      fontSize: "14px",
-      fontWeight: 600,
-      cursor: "pointer",
-      boxShadow: "0 4px 20px rgba(8,113,231,0.35)",
-      transition: "opacity 0.2s",
-    }}
-      onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.88")}
-      onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
-    >
-      {children}
-    </button>
-  );
-}
-
-const errorStyle: React.CSSProperties = {
-  background: "rgba(239,68,68,0.1)",
-  border: "1px solid rgba(239,68,68,0.25)",
-  borderRadius: "8px",
-  padding: "8px 12px",
-  color: "#f87171",
-  fontSize: "13px",
-};
-
-const authLinkStyle: React.CSSProperties = {
-  fontFamily: "var(--font-sans)",
-  fontSize: "13px",
-  color: "rgba(26,26,26,0.6)",
-  textAlign: "center",
-};
-
-function AppInner() {
+function AppInner({ session }: { session: Session | null }) {
   const location = useLocation();
-  const navigate = useNavigate();
   const isBoardPage = location.pathname.startsWith("/board");
   const hideNav = isBoardPage;
   const [showSplash, setShowSplash] = useState(false);
-  const [pendingPath, setPendingPath] = useState<string | null>(null);
+  const [splashDone, setSplashDone] = useState(false);
 
-  const [, setTick] = useState(0);
+  // Show splash only on very first load
   useEffect(() => {
-    const onStorage = () => setTick((t) => t + 1);
-    window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
-  }, []);
+    if (!splashDone && !sessionStorage.getItem("sa_splash_shown")) {
+      setShowSplash(true);
+    }
+  }, [splashDone]);
 
   const playSound = () => {
     try {
@@ -233,17 +59,10 @@ function AppInner() {
     } catch (e) {}
   };
 
-  const handleStartApp = (path: string) => {
-    setPendingPath(path);
-    setShowSplash(true);
-  };
-
   const onSplashComplete = () => {
+    sessionStorage.setItem("sa_splash_shown", "1");
     setShowSplash(false);
-    if (pendingPath) {
-      navigate(pendingPath);
-      setPendingPath(null);
-    }
+    setSplashDone(true);
   };
 
   return (
@@ -254,11 +73,23 @@ function AppInner() {
         <Route path="/" element={<HomePage />} />
         <Route path="/about" element={<AboutPage />} />
         <Route path="/services" element={<ServicesPage />} />
-        <Route path="/login" element={<LoginPage onLogin={() => handleStartApp("/dashboard")} />} />
-        <Route path="/signup" element={<SignupPage onSignup={() => handleStartApp("/dashboard")} />} />
         <Route path="/dashboard" element={<DashboardPage />} />
-        <Route path="/board/:roomId" element={<BoardPage />} />
-        <Route path="/board" element={<BoardPage />} />
+        <Route
+          path="/board/:roomId"
+          element={
+            <ProtectedRoute session={session}>
+              <BoardPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/board"
+          element={
+            <ProtectedRoute session={session}>
+              <BoardPage />
+            </ProtectedRoute>
+          }
+        />
         <Route path="*" element={<HomePage />} />
       </Routes>
     </>
@@ -266,9 +97,34 @@ function AppInner() {
 }
 
 export default function App() {
+  const [session, setSession] = useState<Session | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setLoading(false);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
+      setSession(session);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  if (loading) {
+    return (
+      <div style={{ minHeight: "100dvh", background: "#F3F4ED", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ width: 32, height: 32, border: "3px solid rgba(0,189,125,0.2)", borderTopColor: "#00BD7D", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      </div>
+    );
+  }
+
   return (
     <BrowserRouter>
-      <AppInner />
+      <AppInner session={session} />
     </BrowserRouter>
   );
 }

@@ -1,6 +1,7 @@
 import { motion } from "motion/react";
 import { useNavigate } from "react-router-dom";
-import { getAuth } from "../App";
+import { supabase } from "../services/supabase";
+import { useState, useEffect } from "react";
 
 const USPs = [
   {
@@ -84,7 +85,10 @@ function Section({
 
 export default function AboutPage() {
   const navigate = useNavigate();
-  const user = getAuth();
+  const [user, setUser] = useState<any>(null);
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => setUser(user));
+  }, []);
 
   return (
     <div style={{ fontFamily: "var(--font-sans)", paddingTop: "80px", background: "#F3F4ED" }}>
