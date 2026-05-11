@@ -73,13 +73,13 @@ function tryArc(points: Point[]): RecognizedShape | null {
   // Compute angular span using sorted angles with gap detection
   const angles = points.map(p => Math.atan2(p.y - c.y, p.x - c.x) * 180 / Math.PI);
   const sorted = [...angles].sort((a, b) => a - b);
-  let maxGap = 0, gapStart = sorted[sorted.length - 1];
+  let maxGap = 0;
   for (let i = 0; i < sorted.length - 1; i++) {
     const gap = sorted[i + 1] - sorted[i];
-    if (gap > maxGap) { maxGap = gap; gapStart = sorted[i]; }
+    if (gap > maxGap) { maxGap = gap; }
   }
   const wrapGap = sorted[0] + 360 - sorted[sorted.length - 1];
-  if (wrapGap > maxGap) { maxGap = wrapGap; gapStart = sorted[sorted.length - 1]; }
+  if (wrapGap > maxGap) { maxGap = wrapGap; }
 
   const arcSpan = 360 - maxGap;
   if (arcSpan < 120 || maxGap < 25) return null; // too small arc or barely open

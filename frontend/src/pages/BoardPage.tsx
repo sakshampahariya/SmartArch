@@ -166,7 +166,7 @@ export default function BoardPage() {
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
           {users.slice(0, 5).map((u, i) => (
             <div
-              key={u.id}
+              key={u.userId}
               title={u.name}
               style={{
                 width: "28px",
@@ -292,7 +292,7 @@ export default function BoardPage() {
                 Room ID
               </p>
               <p style={{ fontFamily: "monospace", fontSize: "11px", color: isDarkMode ? "rgba(255,255,255,0.55)" : "rgba(26,26,26,0.7)", margin: 0, wordBreak: "break-all", lineHeight: 1.5 }}>
-                {roomId}
+                {storeRoomId}
               </p>
             </div>
 

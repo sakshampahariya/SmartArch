@@ -1,7 +1,6 @@
 import { useEffect, useRef, forwardRef, useImperativeHandle } from "react";
 import {
   Circle,
-  Group,
   Line,
   Path,
   PencilBrush,
@@ -27,12 +26,6 @@ export interface CanvasBoardHandle {
 }
 
 type CanvasObjectWithId = FabricObject & { objectId?: string };
-type CursorPayload = {
-  userId?: string;
-  x?: number;
-  y?: number;
-  color?: string;
-};
 type ObjectUpdatedPayload = { objectId?: string } & Record<string, unknown>;
 
 export const CanvasBoard = forwardRef<CanvasBoardHandle>(function CanvasBoard(_props, ref) {
@@ -179,9 +172,9 @@ export const CanvasBoard = forwardRef<CanvasBoardHandle>(function CanvasBoard(_p
             fill: activeColor,
             angle: angle + 90,
           });
-          (lineShape as FabricObject & { objectId: string }).objectId =
+          (lineShape as any).objectId =
             crypto.randomUUID();
-          (arrowHead as FabricObject & { objectId: string }).objectId =
+          (arrowHead as any).objectId =
             crypto.randomUUID();
           canvas.add(lineShape, arrowHead);
           canvas.renderAll();
@@ -378,7 +371,7 @@ export const CanvasBoard = forwardRef<CanvasBoardHandle>(function CanvasBoard(_p
       const dx = evt.clientX - panStartRef.current.x;
       const dy = evt.clientY - panStartRef.current.y;
       panStartRef.current = { x: evt.clientX, y: evt.clientY };
-      canvas.relativePan({ x: dx, y: dy });
+      canvas.relativePan(new Point(dx, dy));
     };
     const onFabricMouseUp = () => {
       if (isPanningRef.current) {
@@ -400,10 +393,10 @@ export const CanvasBoard = forwardRef<CanvasBoardHandle>(function CanvasBoard(_p
         zoom *= 0.999 ** delta;
         zoom = Math.min(Math.max(zoom, 0.1), 10);
         const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-        canvas.zoomToPoint({ x: e.clientX - rect.left, y: e.clientY - rect.top }, zoom);
+        canvas.zoomToPoint(new Point(e.clientX - rect.left, e.clientY - rect.top), zoom);
       } else {
         // Pan
-        canvas.relativePan({ x: -e.deltaX, y: -e.deltaY });
+        canvas.relativePan(new Point(-e.deltaX, -e.deltaY));
       }
     };
     if (wrapperEl) wrapperEl.addEventListener("wheel", onWheel, { passive: false });

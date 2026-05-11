@@ -1,6 +1,6 @@
 import type { MutableRefObject } from "react";
 import { useState } from "react";
-import { Circle, Group, IText, Textbox, Line, Rect, Triangle, type Canvas } from "fabric";
+import { Circle, IText, Textbox, Line, Rect, Triangle, type Canvas } from "fabric";
 import { useCanvasStore } from "../../stores/canvasStore";
 
 interface CanvasControlsProps {
