@@ -4,7 +4,7 @@
 
 **SmartArch Board** is a professional, real-time collaborative whiteboard platform designed specifically for architects and designers. It combines a powerful infinite canvas with AI-driven insights to transform your design workflow.
 
-🚀 **Live Demo:** [smartarch-board.onrender.com](https://smartarch-board.onrender.com)
+🚀 **Live Demo:** https://smartarch-board-1.onrender.com/
 
 ---
 
