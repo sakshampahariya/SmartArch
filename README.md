@@ -1,7 +1,5 @@
 # 🎨 SmartArch Board
 
-![SmartArch Banner](file:///C:/Users/DHRUV%20GUPTA/.gemini/antigravity/brain/c7d0d89d-51e0-4bc7-8473-cbe59defac0a/smartarch_banner_1778857140939.png)
-
 **SmartArch Board** is a professional, real-time collaborative whiteboard platform designed specifically for architects and designers. It combines a powerful infinite canvas with AI-driven insights to transform your design workflow.
 
 🚀 **Live Demo:** https://smartarch-board-1.onrender.com/
@@ -107,7 +105,3 @@ VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 ## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
----
-
-**Developed with ❤️ by [Dhruv Gupta](https://github.com/guptadhruv780)**
